@@ -49,17 +49,22 @@ class NeuralNet():
             raise Exception('NNTools.NeuralNet - Missmatching dimension of input {} to number of neurons {}!'.format(x.__len__(), self.neurons[layer]))
         
     def calculate_output_to_input(self, layer_output):
-        for ii in range(1,self.neurons.__len__()):
-            layer_output = self.calculate_output_of_layer(ii-1, layer_output)
+        for ii in range(0,self.number_of_layers-1):
+            layer_output = self.calculate_output_of_layer(ii, layer_output)
         return layer_output
             
     def mutate_weights_in_layer(self, layer, mutation_rate = 0.1):
-        if layer < self.number_of_layers: # only mutate layers which are existent
+        if layer < self.number_of_layers: # only mutate layers which exist
             rand_weights = np.random.rand(self.weights[layer].shape[0], self.weights[layer].shape[1]) < mutation_rate
             rand_change = (np.random.rand(self.weights[layer].shape[0], self.weights[layer].shape[1])*2)-1
             self.weights[layer][rand_weights] = self.weights[layer][rand_weights] + rand_change[rand_weights]
             self.weights[layer] = np.maximum(-1, self.weights[layer])
             self.weights[layer] = np.minimum(1, self.weights[layer])
+            
+    def mutate_weights_in_all_layers(self, mutation_rate = 0.1):
+        # all hidden layers
+        for layer in range(0,self.number_of_layers-1):
+            self.mutate_weights_in_layer(layer, mutation_rate)
                     
     def mutate_neuron_number_of_layer(self, layer, mutation_rate = 0.1):
         rand = np.random.random()
@@ -74,6 +79,11 @@ class NeuralNet():
             else:
                 # add some neurons to layer
                 self.add_neurons_to_layer(layer,new_number_of_neurons-self.neurons[layer])
+                
+    def mutate_neuron_number_of_all_layers(self, mutation_rate = 0.1):
+        # all hidden layers
+        for layer in range(1, self.number_of_layers-1):
+            self.mutate_neuron_number_of_layer(layer, mutation_rate)
                 
     def mutate_activation_of_layer(self, layer, mutation_rate = 0.1):
         rand = np.random.random()

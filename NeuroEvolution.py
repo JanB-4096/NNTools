@@ -5,6 +5,7 @@ Created on 13.03.2020
 '''
 from NNTools.NeuralNet import NeuralNet
 import numpy as np
+import itertools
 
 
 class NeuroEvolution():
@@ -12,8 +13,9 @@ class NeuroEvolution():
     def __init__(self, population_count, layers, activation):
         self.population = [NeuralNet(layers, activation) for _ in range(0, population_count)]
         self.generation = 1
+        self.generation_overview = {}
         self.best_fitness = 0
-        self.fitness_list = []
+        self.fitness_list = np.zeros(population_count)
         self.fraction_best = 0.2 # fraction of best nn to keep for next generation
         self.fraction_best_crossover = 0.2 # fraction of population of best species to crossover
         self.fraction_random_crossover = 0.2 # fraction of population of random species to crossover
@@ -38,7 +40,7 @@ class NeuroEvolution():
         # clone mother species as initial net and adapt with father 
         new_nn = mother_species.clone()
         if np.any(mother_species.neurons != father_species.neurons):
-            return None
+            return self.crossover_species(id_species_a, id_species_b)
         else:
             for ii in range(0, father_species.number_of_layers-1): # for each hidden layer
                 rand_row = int(np.round(np.random.random() * mother_species.neurons[ii]))
@@ -50,7 +52,7 @@ class NeuroEvolution():
         mother_species, father_species = self.get_mother_and_father(id_species_a, id_species_b)
         new_nn = mother_species.clone()
         if np.any(mother_species.neurons != father_species.neurons):
-            return None
+            return self.crossover_species(id_species_a, id_species_b)
         else:
             for ii in range(0, father_species.number_of_layers-1): # for all weight matrices
                 rand_row = int(np.round(np.random.random() * mother_species.neurons[ii]))
@@ -68,7 +70,7 @@ class NeuroEvolution():
         mother_species, father_species = self.get_mother_and_father(id_species_a, id_species_b)
         new_nn = mother_species.clone()
         if np.any(mother_species.neurons != father_species.neurons):
-            return None
+            return self.crossover_species(id_species_a, id_species_b)
         else:
             for ii in range(0, father_species.number_of_layers-1): # for all weights
                 rand_father = np.random.rand(mother_species.neurons[ii], mother_species.neurons[ii+1]) >= 0.5
@@ -146,3 +148,42 @@ class NeuroEvolution():
                                     except:
                                         continue
         return new_nn
+
+    def update_fitness(self, fitness, species_id):
+        if fitness > self.best_fitness:
+            self.best_fitness = fitness
+        self.fitness_list[species_id] = fitness
+        
+    def build_next_generation(self):
+        new_gen = []
+        number_of_best_next_gen = int(np.round(self.fraction_best*self.population.__len__()))
+        idx_best_nn = self.fitness_list.argsort()[-1:-number_of_best_next_gen-1:-1] # reversed list with best nn first
+        [new_gen.append(self.population[ii]) for ii in idx_best_nn]
+        
+        number_of_crossover_best = int(np.round(self.fraction_best_crossover*self.population.__len__()))
+        idx_crossover_best = list(itertools.product(idx_best_nn, idx_best_nn))
+        idx_crossover_best = [(ii[0], ii[1]) for ii in idx_crossover_best if ii[0] != ii[1]]
+        [new_gen.append(self.crossover_singlepoint(ii[0], ii[1])) for ii in idx_crossover_best[0:number_of_crossover_best]]
+        
+        number_of_crossover_random = int(np.round(self.fraction_random_crossover*self.population.__len__()))
+        idx_random_nn = list(map(int, np.random.rand(number_of_crossover_random)*self.population.__len__()))
+        idx_crossover_random = list(itertools.product(idx_best_nn, idx_random_nn))
+        idx_crossover_random = [(ii[0], ii[1]) for ii in idx_crossover_random if ii[0] != ii[1]]
+        [new_gen.append(self.crossover_singlepoint(ii[0], ii[1])) for ii in idx_crossover_random[0:number_of_crossover_random]]
+        
+        number_mutate = int(np.round(self.fraction_mutation*self.population.__len__()))
+        mutation_process = number_mutate // number_of_best_next_gen
+        for jj in range(mutation_process):
+            if jj % 2 == 0:
+                [new_gen.append(self.population[ii]) for ii in idx_best_nn]
+                [new_gen[ii].mutate_weights_in_all_layers() for ii in range(len(new_gen)-number_of_best_next_gen, len(new_gen))]
+            else:
+                [new_gen.append(self.population[ii]) for ii in idx_best_nn]
+                [new_gen[ii].mutate_neuron_number_of_all_layers() for ii in range(len(new_gen)-number_of_best_next_gen, len(new_gen))]
+                
+        mutation_process = self.population.__len__() - new_gen.__len__()
+        if mutation_process != 0:
+            [new_gen.append(self.population[ii]) for ii in idx_best_nn[0:mutation_process]]
+            [new_gen[ii].mutate_neuron_number_of_all_layers() for ii in range(len(new_gen)-mutation_process, len(new_gen))]
+            
+        self.population = new_gen
