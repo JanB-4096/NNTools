@@ -6,11 +6,10 @@ Created on 13.03.2020
 import numpy as np
 from copy import deepcopy
 
-activation_fcns = {0: 'sigmoid', 1: 'relu', 2: 'softmax'} # implemented activations of NN
 
 class NeuralNet():
     
-    def __init__(self, layers, activation = activation_fcns[0]):
+    def __init__(self, layers, activation = 'sigmoid'):
         self.neurons = np.asarray(layers)
         self.number_of_layers = self.neurons.__len__()
         if type(activation)==list:
@@ -27,13 +26,13 @@ class NeuralNet():
             self.weights.append((np.random.rand(self.neurons[ii], self.neurons[ii+1])-0.5)*2)
             self.biases.append((np.random.rand(self.neurons[ii+1])-0.5)*2)
         
-    def sigmoid(self, x):
+    def sigmoid(self,x):
         return 1 / (1 + np.exp(-x))
     
-    def relu(self, x):
+    def relu(self,x):
         return np.maximum(0, x)
     
-    def softmax(self, x):
+    def softmax(self,x):
         return np.exp(x) / np.sum(np.exp(x))
         
     def calculate_output_of_layer(self, layer, x):
@@ -89,7 +88,17 @@ class NeuralNet():
         rand = np.random.random()
         if rand < mutation_rate:
             rand_activation = np.random.randint(0,3)
-            self.activation[layer] = activation_fcns[rand_activation]
+            if rand_activation == 0:
+                self.activation[layer] = 'sigmoid'
+            elif rand_activation == 1:
+                self.activation[layer] = 'relu' 
+            else:
+                self.activation[layer] = 'softmax'
+            
+    def mutate_activation_of_all_layers(self, mutation_rate = 0.1):
+        # all hidden layers
+        for layer in range(1, self.number_of_layers-1):
+            self.mutate_activation_of_layer(layer, mutation_rate)
 
     def remove_neurons_in_layer(self, layer, number_to_remove):
         if layer == 0 or layer == self.number_of_layers-1:

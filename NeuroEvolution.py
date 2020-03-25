@@ -16,10 +16,14 @@ class NeuroEvolution():
         self.generation_overview = {}
         self.best_fitness = 0
         self.fitness_list = np.zeros(population_count)
-        self.fraction_best = 0.2 # fraction of best nn to keep for next generation
-        self.fraction_best_crossover = 0.2 # fraction of population of best species to crossover
-        self.fraction_random_crossover = 0.2 # fraction of population of random species to crossover
-        self.fraction_mutation = 1 - self.fraction_best - self.fraction_best_crossover - self.fraction_random_crossover
+        self.fraction_best = 0 # fraction of best nn to keep for next generation
+        self.fraction_best_crossover_sp = 0.1 # fraction of population of best species to crossover with single point
+        self.fraction_best_crossover_dp = 0.1 # fraction of population of best species to crossover with double point
+        self.fraction_best_crossover_up = 0.1 # fraction of population of best species to crossover with unique point
+        self.fraction_random_crossover = 0.1 # fraction of population of random species to crossover
+        self.fraction_mutation_weights = 0
+        self.fraction_mutation_neuron_number = 0.1
+        self.fraction_mutation_activation = 0
         
     def clone_species(self, id_of_species):
         return self.population[id_of_species].clone()
@@ -154,36 +158,73 @@ class NeuroEvolution():
             self.best_fitness = fitness
         self.fitness_list[species_id] = fitness
         
+    def check_next_gen_fractions(self):
+        # clamp fractions
+        self.fraction_best = np.min([np.max([self.fraction_best, 1/self.population.__len__()]), 0.2]) 
+        self.fraction_best_crossover_sp = np.min([np.max([self.fraction_best_crossover_sp, 0]), 0.5])
+        self.fraction_best_crossover_dp = np.min([np.max([self.fraction_best_crossover_dp, 0]), 0.5])
+        self.fraction_best_crossover_up = np.min([np.max([self.fraction_best_crossover_up, 0]), 0.5])
+        self.fraction_random_crossover = np.min([np.max([self.fraction_random_crossover, 0]), 0.5])
+        self.fraction_mutation_weights = np.min([np.max([self.fraction_mutation_weights, 0]), 1])
+        self.fraction_mutation_neuron_number = np.min([np.max([self.fraction_mutation_neuron_number, 0]), 0.5])
+        self.fraction_mutation_activation = np.min([np.max([self.fraction_mutation_activation, 0]), 0.5])
+        
+        # check fractions for sum
+        sum_fractions = self.fraction_best + self.fraction_best_crossover_sp + self.fraction_best_crossover_dp + \
+            self.fraction_best_crossover_up + self.fraction_random_crossover + self.fraction_mutation_weights + \
+            self.fraction_mutation_neuron_number + self.fraction_mutation_activation
+        if sum_fractions > 1:
+            Warning('Sum of fractions for next generation are bigger than 1 - your population will increase with each generation!')
+        elif sum_fractions < 1:     
+            Warning('Sum of fractions for next generation is smaller than 1 - it filled with more mutation of weights!')
+            self.fraction_mutation_weights = 1 - self.fraction_best - self.fraction_best_crossover_sp - \
+                self.fraction_best_crossover_dp - self.fraction_best_crossover_up - self.fraction_random_crossover - \
+                self.fraction_mutation_neuron_number - self.fraction_mutation_activation
+        
     def build_next_generation(self):
         new_gen = []
-        number_of_best_next_gen = int(np.round(self.fraction_best*self.population.__len__()))
-        idx_best_nn = self.fitness_list.argsort()[-1:-number_of_best_next_gen-1:-1] # reversed list with best nn first
-        [new_gen.append(self.population[ii]) for ii in idx_best_nn]
         
-        number_of_crossover_best = int(np.round(self.fraction_best_crossover*self.population.__len__()))
-        idx_crossover_best = list(itertools.product(idx_best_nn, idx_best_nn))
-        idx_crossover_best = [(ii[0], ii[1]) for ii in idx_crossover_best if ii[0] != ii[1]]
-        [new_gen.append(self.crossover_singlepoint(ii[0], ii[1])) for ii in idx_crossover_best[0:number_of_crossover_best]]
+        # number of best nn to use for next gen
+        number_for_next_gen = int(np.round(self.fraction_best*self.population.__len__()))
+        sorted_fitness = self.fitness_list.argsort()[-1::-1]
+        [new_gen.append(self.population[ii]) for ii in sorted_fitness[0:number_for_next_gen]]
         
-        number_of_crossover_random = int(np.round(self.fraction_random_crossover*self.population.__len__()))
-        idx_random_nn = list(map(int, np.random.rand(number_of_crossover_random)*self.population.__len__()))
-        idx_crossover_random = list(itertools.product(idx_best_nn, idx_random_nn))
-        idx_crossover_random = [(ii[0], ii[1]) for ii in idx_crossover_random if ii[0] != ii[1]]
-        [new_gen.append(self.crossover_singlepoint(ii[0], ii[1])) for ii in idx_crossover_random[0:number_of_crossover_random]]
+        if self.fraction_best_crossover_sp > 0:
+            number_of_crossover = int(np.round(self.fraction_best_crossover_sp*self.population.__len__()))
+            idx_crossover_best = list(itertools.product([sorted_fitness[0]], sorted_fitness[1:]))
+            [new_gen.append(self.crossover_singlepoint(ii[0], ii[1])) for ii in idx_crossover_best[0:number_of_crossover]]
         
-        number_mutate = int(np.round(self.fraction_mutation*self.population.__len__()))
-        mutation_process = number_mutate // number_of_best_next_gen
-        for jj in range(mutation_process):
-            if jj % 2 == 0:
-                [new_gen.append(self.population[ii]) for ii in idx_best_nn]
-                [new_gen[ii].mutate_weights_in_all_layers() for ii in range(len(new_gen)-number_of_best_next_gen, len(new_gen))]
-            else:
-                [new_gen.append(self.population[ii]) for ii in idx_best_nn]
-                [new_gen[ii].mutate_neuron_number_of_all_layers() for ii in range(len(new_gen)-number_of_best_next_gen, len(new_gen))]
-                
-        mutation_process = self.population.__len__() - new_gen.__len__()
-        if mutation_process != 0:
-            [new_gen.append(self.population[ii]) for ii in idx_best_nn[0:mutation_process]]
-            [new_gen[ii].mutate_neuron_number_of_all_layers() for ii in range(len(new_gen)-mutation_process, len(new_gen))]
+        if self.fraction_best_crossover_dp > 0:
+            number_of_crossover = int(np.round(self.fraction_best_crossover_dp*self.population.__len__()))
+            idx_crossover_best = list(itertools.product([sorted_fitness[0]], sorted_fitness[1:]))
+            [new_gen.append(self.crossover_doublepoint(ii[0], ii[1])) for ii in idx_crossover_best[0:number_of_crossover]]
             
+        if self.fraction_best_crossover_up > 0:
+            number_of_crossover = int(np.round(self.fraction_best_crossover_up*self.population.__len__()))
+            idx_crossover_best = list(itertools.product([sorted_fitness[0]], sorted_fitness[1:]))
+            [new_gen.append(self.crossover_uniquepoint(ii[0], ii[1])) for ii in idx_crossover_best[0:number_of_crossover]]
+            
+        if self.fraction_random_crossover > 0:
+            number_of_crossover= int(np.round(self.fraction_random_crossover*self.population.__len__()))
+            idx_random_nn = list(map(int, np.random.rand(number_of_crossover)*self.population.__len__()))
+            idx_crossover_random = list(itertools.product(idx_random_nn, idx_random_nn))
+            idx_crossover_random = [(ii[0],ii[1]) for ii in idx_crossover_random if ii[0] != ii[1]]
+            [new_gen.append(self.crossover_singlepoint(ii[0], ii[1])) for ii in idx_crossover_random[0:number_of_crossover]]
+        
+        if self.fraction_mutation_neuron_number > 0:
+            number_mutate = int(np.round(self.fraction_mutation_neuron_number*self.population.__len__()))
+            [new_gen.append(self.population[sorted_fitness[0]]) for _ in range(number_mutate)]
+            [new_gen[ii].mutate_neuron_number_of_all_layers() for ii in range(len(new_gen)-number_mutate, len(new_gen))]
+            
+        if self.fraction_mutation_activation > 0:
+            number_mutate = int(np.round(self.fraction_mutation_activation*self.population.__len__()))
+            [new_gen.append(self.population[sorted_fitness[0]]) for _ in range(number_mutate)]
+            [new_gen[ii].mutate_neuron_number_of_all_layers() for ii in range(len(new_gen)-number_mutate, len(new_gen))]
+        
+        number_mutate = self.population.__len__() - new_gen.__len__()
+        if number_mutate > 0:
+            [new_gen.append(self.population[sorted_fitness[0]]) for _ in range(number_mutate)]
+            [new_gen[ii].mutate_weights_in_all_layers() for ii in range(len(new_gen)-number_mutate, len(new_gen))]
+
+        
         self.population = new_gen
