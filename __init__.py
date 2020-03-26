@@ -21,8 +21,12 @@ def save_obj_to_file(obj, file = None):
         pickle.dump(obj, file_dict)
         
 def load_obj_from_file(file = None):
-    if type(file) == None:
-        file = 'obj_'+str(datetime.datetime.today())
-    with open(file, 'rb') as file_dict:
-        obj = pickle.load(file_dict)
-    return obj
+    try:
+        if type(file) == None:
+            file = 'obj_'+str(datetime.datetime.today())
+        with open(file, 'rb') as file_dict:
+            obj = pickle.load(file_dict)
+        return obj
+    except:
+        Warning('FileNotFoundError: No such file or directory {}'.format(file))
+        return None

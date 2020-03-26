@@ -187,7 +187,7 @@ class NeuroEvolution():
         # number of best nn to use for next gen
         number_for_next_gen = int(np.round(self.fraction_best*self.population.__len__()))
         sorted_fitness = self.fitness_list.argsort()[-1::-1]
-        [new_gen.append(self.population[ii]) for ii in sorted_fitness[0:number_for_next_gen]]
+        [new_gen.append(self.population[ii].clone()) for ii in sorted_fitness[0:number_for_next_gen]]
         
         if self.fraction_best_crossover_sp > 0:
             number_of_crossover = int(np.round(self.fraction_best_crossover_sp*self.population.__len__()))
@@ -213,17 +213,17 @@ class NeuroEvolution():
         
         if self.fraction_mutation_neuron_number > 0:
             number_mutate = int(np.round(self.fraction_mutation_neuron_number*self.population.__len__()))
-            [new_gen.append(self.population[sorted_fitness[0]]) for _ in range(number_mutate)]
+            [new_gen.append(self.population[sorted_fitness[0]].clone()) for _ in range(number_mutate)]
             [new_gen[ii].mutate_neuron_number_of_all_layers() for ii in range(len(new_gen)-number_mutate, len(new_gen))]
             
         if self.fraction_mutation_activation > 0:
             number_mutate = int(np.round(self.fraction_mutation_activation*self.population.__len__()))
-            [new_gen.append(self.population[sorted_fitness[0]]) for _ in range(number_mutate)]
+            [new_gen.append(self.population[sorted_fitness[0]].clone()) for _ in range(number_mutate)]
             [new_gen[ii].mutate_neuron_number_of_all_layers() for ii in range(len(new_gen)-number_mutate, len(new_gen))]
         
         number_mutate = self.population.__len__() - new_gen.__len__()
         if number_mutate > 0:
-            [new_gen.append(self.population[sorted_fitness[0]]) for _ in range(number_mutate)]
+            [new_gen.append(self.population[sorted_fitness[0]].clone()) for _ in range(number_mutate)]
             [new_gen[ii].mutate_weights_in_all_layers() for ii in range(len(new_gen)-number_mutate, len(new_gen))]
 
         
